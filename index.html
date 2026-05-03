@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>杨杰制作</title>
+  <style>
+    :root{
+      --btn-radius:28px;
+      --btn-padding:12px 26px;
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color:#fff;
+      overflow:hidden;
+      background: url('background.jpg') no-repeat center center fixed;
+      background-size: cover;
+      transition: background-color 0.25s ease;
+    }
+
+    /* 半透明彩虹覆盖层（不遮挡背景图） */
+    #colorOverlay{
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(270deg, rgba(255,0,64,0.18), rgba(255,128,0,0.18), rgba(64,255,64,0.18), rgba(0,191,255,0.18), rgba(128,0,255,0.18));
+      background-size: 1400% 1400%;
+      mix-blend-mode: overlay;
+      opacity: 0.25; /* 初始半透明度，可被脚本调整 */
+      transition: opacity 0.25s linear, filter 0.25s linear;
+      z-index: 0;
+      animation: rainbowFlow 20s linear infinite;
+      will-change: opacity, filter;
+    }
+
+    @keyframes rainbowFlow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* 中央容器置于覆盖层之上 */
+    .player-container{
+      position: absolute;
+      left:50%;
+      top:50%;
+      transform: translate(-50%,-50%);
+      width: min(920px, 92vw);
+      padding: 18px;
+      box-sizing: border-box;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:14px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.28), rgba(0,0,0,0.18));
+      border-radius:16px;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px) saturate(120%);
+      z-index: 2;
+    }
+
+    .visual-wrap{
+      width:100%;
+      position:relative;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      padding:8px;
+      box-sizing:border-box;
+      z-index: 2;
+    }
+
+    canvas{
+      width:100%;
+      height:220px;
+      border-radius:10px;
+      display:block;
+      background: linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.05));
+      box-shadow: inset 0 2px 12px rgba(0,0,0,0.6), 0 6px 30px rgba(0,0,0,0.45);
+      z-index: 2;
+    }
+
+    .controls{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:center;
+      flex-wrap:wrap;
+      width:100%;
+      z-index: 2;
+    }
+
+    .btn{
+      border: none;
+      cursor: pointer;
+      padding: var(--btn-padding);
+      border-radius: var(--btn-radius);
+      color: #fff;
+      font-weight:600;
+      background: linear-gradient(90deg, rgba(255,0,64,0.95), rgba(255,128,0,0.95), rgba(64,255,64,0.95));
+      background-size: 300% 300%;
+      transition: transform 0.28s cubic-bezier(.2,.9,.2,1), box-shadow 0.28s, filter 0.28s;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+      z-index: 2;
+    }
+
+    .btn:active{ transform: scale(0.98); }
+
+    .btn:hover{
+      transform: scale(1.08);
+      filter: saturate(1.15) brightness(1.05);
+      box-shadow: 0 12px 36px rgba(0,0,0,0.55), 0 0 30px rgba(255,255,255,0.06) inset;
+      background-position: 100% 50%;
+    }
+
+    .btn.play{
+      padding: 14px 34px;
+      font-size:16px;
+      background: linear-gradient(90deg, #00d4ff, #0066ff, #8a00ff);
+      background-size: 300% 300%;
+    }
+
+    .track-info{
+      width:100%;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      font-size:14px;
+      color:rgba(255,255,255,0.9);
+      z-index: 2;
+    }
+
+    .track-title{
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width:60%;
+    }
+
+    .progress{
+      appearance:none;
+      height:6px;
+      width:35%;
+      background: rgba(255,255,255,0.08);
+      border-radius:6px;
+      outline:none;
+      cursor:pointer;
+    }
+
+    .progress::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      width:14px;
+      height:14px;
+      border-radius:50%;
+      background: linear-gradient(90deg,#fff,#ffd700);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      border:2px solid rgba(255,255,255,0.9);
+    }
+
+    .hint{
+      font-size:12px;
+      color:rgba(255,255,255,0.8);
+      margin-top:6px;
+      z-index: 2;
+    }
+
+    @media (max-width:600px){
+      canvas{ height:160px; }
+      .track-title{ max-width:48%; font-size:13px; }
+      .btn{ padding:10px 18px; font-size:14px; border-radius:22px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 半透明彩虹覆盖层 保持在背景之上、UI之下 -->
+  <div id="colorOverlay" aria-hidden="true"></div>
+
+  <div class="player-container" role="region" aria-label="音频律动播放器">
+    <div class="visual-wrap">
+      <canvas id="visualizer" width="1200" height="440"></canvas>
+    </div>
+
+    <div class="track-info" aria-hidden="false">
+      <div class="track-title" id="trackTitle">加载中…</div>
+      <input id="progress" class="progress" type="range" min="0" max="100" value="0" />
+    </div>
+
+    <div class="controls" role="group" aria-label="播放控制">
+      <button class="btn" id="prevBtn" title="上一曲">上一曲</button>
+      <button class="btn play" id="playBtn" title="播放/暂停">播放</button>
+      <button class="btn" id="nextBtn" title="下一曲">下一曲</button>
+      <button class="btn" id="shuffleBtn" title="随机播放">随机</button>
+      <button class="btn" id="loopBtn" title="循环">循环</button>
+    </div>
+
+    <div class="hint">邮箱:673528204@qq.com。</div>
+  </div>
+
+  <audio id="audio" preload="metadata" crossorigin="anonymous"></audio>
+
+<script>
+(function(){
+  const audio = document.getElementById('audio');
+  const canvas = document.getElementById('visualizer');
+  const ctx = canvas.getContext('2d', { alpha: true });
+  const playBtn = document.getElementById('playBtn');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const loopBtn = document.getElementById('loopBtn');
+  const trackTitle = document.getElementById('trackTitle');
+  const progress = document.getElementById('progress');
+  const colorOverlay = document.getElementById('colorOverlay');
+
+  const tracks = [];
+  for (let i = 1; i <= 14; i++) tracks.push(`music/music${i}.mp3`);
+
+  let currentTrack = 0;
+  let isShuffled = false;
+  let isLoop = false;
+  let audioCtx = null;
+  let analyser = null;
+  let sourceNode = null;
+  let dataArray = null;
+  let bufferLength = 0;
+
+  let sensitivity = 0.55;
+  let smoothing = 0.85;
+  let decay = 0.05;
+  let peak = 0;
+  let particles = [];
+
+  function resizeCanvas(){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function ensureAudioContext(){
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = smoothing;
+    bufferLength = analyser.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
+
+    sourceNode = audioCtx.createMediaElementSource(audio);
+    sourceNode.connect(analyser);
+    analyser.connect(audioCtx.destination);
+  }
+
+  function loadTrack(index){
+    if (index < 0 || index >= tracks.length) return;
+    currentTrack = index;
+    audio.src = tracks[index];
+    trackTitle.textContent = tracks[index].split('/').pop();
+    audio.load();
+  }
+
+  function togglePlay(){
+    ensureAudioContext();
+    if (audio.paused){
+      audio.play().catch(()=>{});
+      playBtn.textContent = '暂停';
+    } else {
+      audio.pause();
+      playBtn.textContent = '播放';
+    }
+  }
+
+  function nextTrack(){
+    if (isShuffled){
+      currentTrack = Math.floor(Math.random() * tracks.length);
+    } else {
+      currentTrack = (currentTrack + 1) % tracks.length;
+    }
+    loadTrack(currentTrack);
+    audio.play().catch(()=>{});
+    playBtn.textContent = '暂停';
+  }
+
+  function prevTrack(){
+    if (isShuffled){
+      currentTrack = Math.floor(Math.random() * tracks.length);
+    } else {
+      currentTrack = (currentTrack - 1 + tracks.length) % tracks.length;
+    }
+    loadTrack(currentTrack);
+    audio.play().catch(()=>{});
+    playBtn.textContent = '暂停';
+  }
+
+  playBtn.addEventListener('click', () => {
+    ensureAudioContext();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    togglePlay();
+  });
+
+  prevBtn.addEventListener('click', () => {
+    ensureAudioContext();
+    prevTrack();
+  });
+
+  nextBtn.addEventListener('click', () => {
+    ensureAudioContext();
+    nextTrack();
+  });
+
+  shuffleBtn.addEventListener('click', () => {
+    isShuffled = !isShuffled;
+    shuffleBtn.style.filter = isShuffled ? 'brightness(1.15) drop-shadow(0 6px 18px rgba(0,0,0,0.5))' : '';
+  });
+
+  loopBtn.addEventListener('click', () => {
+    isLoop = !isLoop;
+    audio.loop = isLoop;
+    loopBtn.style.filter = isLoop ? 'brightness(1.15) drop-shadow(0 6px 18px rgba(0,0,0,0.5))' : '';
+  });
+
+  audio.addEventListener('timeupdate', () => {
+    if (!isNaN(audio.duration) && audio.duration > 0){
+      const pct = (audio.currentTime / audio.duration) * 100;
+      progress.value = pct;
+    }
+  });
+
+  progress.addEventListener('input', (e) => {
+    if (!isNaN(audio.duration) && audio.duration > 0){
+      const pct = Number(e.target.value);
+      audio.currentTime = (pct / 100) * audio.duration;
+    }
+  });
+
+  audio.addEventListener('ended', () => {
+    if (!isLoop) nextTrack();
+  });
+
+  loadTrack(currentTrack);
+
+  function spawnParticle(x, y, hue, size){
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 2,
+      vy: -Math.random() * 2 - 1,
+      life: 1,
+      decay: 0.02 + Math.random() * 0.02,
+      hue,
+      size: size || (6 + Math.random() * 8)
+    });
+  }
+
+  function updateParticles(){
+    for (let i = particles.length - 1; i >= 0; i--){
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.06;
+      p.life -= p.decay;
+      if (p.life <= 0) particles.splice(i,1);
+    }
+  }
+
+  function drawParticles(ctx){
+    for (const p of particles){
+      ctx.beginPath();
+      ctx.globalAlpha = Math.max(0, p.life);
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+      grad.addColorStop(0, `hsla(${p.hue},100%,65%,${Math.max(0.6, p.life)})`);
+      grad.addColorStop(1, `hsla(${p.hue},100%,45%,0)`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(p.x - p.size, p.y - p.size, p.size*2, p.size*2);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function roundRect(ctx, x, y, w, h, r){
+    const radius = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
+  }
+
+  function draw(){
+    requestAnimationFrame(draw);
+    if (!analyser){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      return;
+    }
+
+    analyser.getByteFrequencyData(dataArray);
+
+    let sum = 0;
+    for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+    const avg = sum / bufferLength;
+    peak = Math.max(peak - decay, avg);
+
+    // 调整覆盖层透明度 使其半透明且随音量变化（不会完全遮挡背景图）
+    const baseOpacity = 0.12; // 基础半透明度
+    const dynamic = Math.min(peak / 800, 0.5); // 动态增加但受限
+    colorOverlay.style.opacity = (baseOpacity + dynamic).toFixed(3);
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+
+    const barCount = Math.min(64, bufferLength);
+    const step = Math.floor(bufferLength / barCount);
+    const barGap = 2;
+    const barWidth = (W / barCount) - barGap;
+    let x = 0;
+
+    for (let i = 0; i < barCount; i++){
+      const idx = i * step;
+      const raw = dataArray[idx];
+      const scaled = raw * sensitivity;
+      const barH = Math.max(2, (scaled / 255) * (H * 0.6));
+      const hue = (i / barCount) * 360;
+
+      ctx.fillStyle = `hsla(${hue}, 100%, ${45 + scaled/6}%, 0.95)`;
+      roundRect(ctx, x, H - barH, barWidth, barH, Math.min(8, barWidth * 0.25));
+      ctx.fill();
+
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(0.12, scaled/800)})`;
+      roundRect(ctx, x, H - barH, barWidth, Math.min(6, barH), Math.min(8, barWidth * 0.25));
+      ctx.fill();
+
+      if (i < 6 && scaled > 90 + Math.random()*30){
+        const px = x + barWidth * (0.2 + Math.random()*0.6);
+        const py = H - barH;
+        spawnParticle(px, py, hue, 6 + Math.random()*10);
+      }
+
+      x += barWidth + barGap;
+    }
+
+    // 彩色波浪
+    ctx.lineWidth = 3;
+    const waveGrad = ctx.createLinearGradient(0, 0, W, 0);
+    waveGrad.addColorStop(0, 'rgba(255,255,255,0.95)');
+    waveGrad.addColorStop(0.25, 'rgba(255,200,60,0.95)');
+    waveGrad.addColorStop(0.5, 'rgba(60,200,255,0.95)');
+    waveGrad.addColorStop(0.75, 'rgba(160,80,255,0.95)');
+    waveGrad.addColorStop(1, 'rgba(255,120,160,0.95)');
+
+    ctx.beginPath();
+    const waveBaseY = H * 0.45;
+    const slice = W / bufferLength;
+    let px = 0;
+    for (let i = 0; i < bufferLength; i++){
+      const v = dataArray[i] / 255;
+      const y = waveBaseY + Math.sin(i * 0.12 + performance.now() * 0.002) * 8 + (v - 0.25) * 120 * sensitivity;
+      if (i === 0) ctx.moveTo(px, y);
+      else ctx.lineTo(px, y);
+      px += slice;
+    }
+    ctx.strokeStyle = waveGrad;
+    ctx.globalAlpha = 0.95;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    ctx.beginPath();
+    px = 0;
+    for (let i = 0; i < bufferLength; i++){
+      const v = dataArray[i] / 255;
+      const y = waveBaseY + Math.sin(i * 0.12 + performance.now() * 0.002) * 6 + (v - 0.25) * 80 * sensitivity;
+      if (i === 0) ctx.moveTo(px, y);
+      else ctx.lineTo(px, y);
+      px += slice;
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 10;
+    ctx.stroke();
+
+    updateParticles();
+    drawParticles(ctx);
+
+    const glow = ctx.createLinearGradient(0, 0, 0, H);
+    glow.addColorStop(0, 'rgba(255,255,255,0.02)');
+    glow.addColorStop(1, 'rgba(0,0,0,0.12)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0,0,W, H);
+
+    if (!isNaN(audio.duration) && audio.duration > 0){
+      progress.value = (audio.currentTime / audio.duration) * 100;
+    }
+  }
+
+  requestAnimationFrame(draw);
+
+  document.addEventListener('click', function onceInit(){
+    ensureAudioContext();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    document.removeEventListener('click', onceInit);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space'){
+      e.preventDefault();
+      ensureAudioContext();
+      togglePlay();
+    } else if (e.code === 'ArrowRight'){
+      nextTrack();
+    } else if (e.code === 'ArrowLeft'){
+      prevTrack();
+    }
+  });
+
+  if (!tracks.length){
+    playBtn.disabled = true;
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    trackTitle.textContent = '未找到曲目';
+  }
+
+  if (!ctx){
+    console.error('无法获取 canvas 上下文，视觉效果将无法显示。');
+  }
+})();
+</script>
+
+</body>
+</html>
